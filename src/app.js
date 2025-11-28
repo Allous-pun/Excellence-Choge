@@ -21,6 +21,9 @@ const errorMiddleware = require('./middlewares/error.middleware');
 
 const app = express();
 
+// Trust proxy for rate limiting behind reverse proxy (Render, Nginx, etc.)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -72,7 +75,7 @@ app.use('/api/users', userRoutes);
 // app.use('/api/assignments', assignmentRoutes);
 // app.use('/api/zoom', zoomRoutes);
 
-// Handle undefined routes - SIMPLIFIED APPROACH
+// Handle undefined routes
 app.use((req, res) => {
   res.status(404).json({
     status: 'error',
