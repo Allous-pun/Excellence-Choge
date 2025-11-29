@@ -1,4 +1,5 @@
 // controllers/assignment.controller.js
+const mongoose = require('mongoose');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
 const { 
@@ -26,13 +27,35 @@ const createAssignment = async (req, res) => {
       return badRequestResponse(res, 'Title, description, and due date are required');
     }
 
-    // Parse materials if provided
+    // Parse materials if provided - FIXED VERSION
     let materialsArray = [];
     if (materials) {
-      if (typeof materials === 'string') {
-        materialsArray = materials.split(',').map(id => id.trim()).filter(id => id);
-      } else if (Array.isArray(materials)) {
-        materialsArray = materials;
+      try {
+        // Handle both stringified array and actual array
+        if (typeof materials === 'string') {
+          // Try to parse as JSON first (for array strings)
+          if (materials.startsWith('[') && materials.endsWith(']')) {
+            materialsArray = JSON.parse(materials);
+          } else {
+            // Handle comma-separated string
+            materialsArray = materials.split(',').map(id => id.trim()).filter(id => id);
+          }
+        } else if (Array.isArray(materials)) {
+          materialsArray = materials;
+        }
+        
+        // Validate that all materials are valid ObjectId strings
+        materialsArray = materialsArray.filter(materialId => {
+          if (mongoose.Types.ObjectId.isValid(materialId)) {
+            return materialId;
+          }
+          console.warn(`Invalid material ID skipped: ${materialId}`);
+          return false;
+        });
+      } catch (parseError) {
+        console.warn('Error parsing materials:', parseError);
+        // If parsing fails, treat as empty array
+        materialsArray = [];
       }
     }
 
@@ -215,13 +238,35 @@ const updateAssignment = async (req, res) => {
     if (dueDate) assignment.dueDate = new Date(dueDate);
     if (isPublished !== undefined) assignment.isPublished = isPublished;
 
-    // Update materials if provided
+    // Update materials if provided - FIXED VERSION
     if (materials) {
       let materialsArray = [];
-      if (typeof materials === 'string') {
-        materialsArray = materials.split(',').map(id => id.trim()).filter(id => id);
-      } else if (Array.isArray(materials)) {
-        materialsArray = materials;
+      try {
+        // Handle both stringified array and actual array
+        if (typeof materials === 'string') {
+          // Try to parse as JSON first (for array strings)
+          if (materials.startsWith('[') && materials.endsWith(']')) {
+            materialsArray = JSON.parse(materials);
+          } else {
+            // Handle comma-separated string
+            materialsArray = materials.split(',').map(id => id.trim()).filter(id => id);
+          }
+        } else if (Array.isArray(materials)) {
+          materialsArray = materials;
+        }
+        
+        // Validate that all materials are valid ObjectId strings
+        materialsArray = materialsArray.filter(materialId => {
+          if (mongoose.Types.ObjectId.isValid(materialId)) {
+            return materialId;
+          }
+          console.warn(`Invalid material ID skipped: ${materialId}`);
+          return false;
+        });
+      } catch (parseError) {
+        console.warn('Error parsing materials:', parseError);
+        // If parsing fails, treat as empty array
+        materialsArray = [];
       }
       assignment.materials = materialsArray;
     }
