@@ -1,75 +1,9 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 
-// Create upload directories if they don't exist
-const uploadDirs = [
-  'uploads/images',
-  'uploads/audio',
-  'uploads/profiles',
-  'uploads/books',
-  'uploads/images/books'
-];
+// Use memory storage instead of disk storage for Render compatibility
+const storage = multer.memoryStorage();
 
-uploadDirs.forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    let uploadPath = 'uploads/images/'; // Default path
-    
-    // Determine upload path based on file type and route
-    if (file.fieldname === 'audio') {
-      uploadPath = 'uploads/audio/';
-    } else if (file.fieldname === 'image' || file.fieldname === 'photo') {
-      uploadPath = 'uploads/images/';
-    } else if (file.fieldname === 'pdfFile') {
-      uploadPath = 'uploads/books/';
-    } else if (file.fieldname === 'coverImage') {
-      uploadPath = 'uploads/images/books/';
-    }
-    
-    // Additional logic based on route
-    if (req.baseUrl.includes('users')) {
-      uploadPath = 'uploads/profiles/';
-    } else if (req.baseUrl.includes('sermons')) {
-      if (file.fieldname === 'audio') {
-        uploadPath = 'uploads/audio/';
-      } else {
-        uploadPath = 'uploads/images/';
-      }
-    } else if (req.baseUrl.includes('prayers')) {
-      uploadPath = 'uploads/images/';
-    } else if (req.baseUrl.includes('books')) {
-      if (file.fieldname === 'pdfFile') {
-        uploadPath = 'uploads/books/';
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = 'uploads/images/books/';
-      }
-    }
-    
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const fileExtension = path.extname(file.originalname);
-    
-    let prefix = 'file';
-    if (file.fieldname === 'image') prefix = 'image';
-    if (file.fieldname === 'audio') prefix = 'audio';
-    if (file.fieldname === 'photo') prefix = 'profile';
-    if (file.fieldname === 'pdfFile') prefix = 'book';
-    if (file.fieldname === 'coverImage') prefix = 'cover';
-    
-    const fileName = prefix + '-' + uniqueSuffix + fileExtension;
-    cb(null, fileName);
-  }
-});
 
 // File filter
 const fileFilter = (req, file, cb) => {
@@ -100,16 +34,16 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Create multer instance
+// Create multer instance with memory storage
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit for books (larger for PDFs)
+    fileSize: 50 * 1024 * 1024 // 50MB limit for books
   }
 });
 
-// Export specific upload methods for different use cases
+// Export specific upload methods
 const uploadMiddleware = {
   // For user profile photos
   single: (fieldName) => upload.single(fieldName),

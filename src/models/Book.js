@@ -18,12 +18,15 @@ const bookSchema = new mongoose.Schema({
     trim: true
   },
   coverImage: {
-    type: String,
-    default: ''
+    data: Buffer,
+    contentType: String,
+    filename: String
   },
   pdfFile: {
-    type: String,
-    required: [true, 'PDF file is required']
+    data: Buffer,
+    contentType: String,
+    filename: String,
+    size: Number
   },
   category: {
     type: String,

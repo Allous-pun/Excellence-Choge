@@ -1,6 +1,4 @@
 const Book = require('../models/Book');
-const fs = require('fs');
-const path = require('path');
 const { 
   createdResponse, 
   okResponse, 
@@ -30,27 +28,41 @@ const createBook = async (req, res) => {
       return badRequestResponse(res, 'PDF file is required');
     }
 
-    // Handle file uploads
-    let coverImagePath = '';
-    let pdfFilePath = '';
+    // Process files
+    let coverImageData = null;
+    let pdfFileData = null;
 
     if (req.files) {
+      // Process cover image
       if (req.files.coverImage) {
-        coverImagePath = req.files.coverImage[0].path;
+        const coverImage = req.files.coverImage[0];
+        coverImageData = {
+          data: coverImage.buffer,
+          contentType: coverImage.mimetype,
+          filename: coverImage.originalname
+        };
       }
+
+      // Process PDF file
       if (req.files.pdfFile) {
-        pdfFilePath = req.files.pdfFile[0].path;
+        const pdfFile = req.files.pdfFile[0];
+        pdfFileData = {
+          data: pdfFile.buffer,
+          contentType: pdfFile.mimetype,
+          filename: pdfFile.originalname,
+          size: pdfFile.size
+        };
       }
     }
 
     // Create book
     const book = await Book.create({
-      title,
-      description,
-      authorName,
-      coverImage: coverImagePath,
-      pdfFile: pdfFilePath,
-      category: category || 'Spiritual',
+      title: title.replace(/"/g, ''),
+      description: description.replace(/"/g, ''),
+      authorName: authorName.replace(/"/g, ''),
+      coverImage: coverImageData,
+      pdfFile: pdfFileData,
+      category: category ? category.replace(/"/g, '') : 'Spiritual',
       uploadedBy: req.user.id
     });
 
@@ -61,18 +73,6 @@ const createBook = async (req, res) => {
 
   } catch (error) {
     console.error('Create book error:', error);
-    
-    // Clean up uploaded files if creation failed
-    if (req.files) {
-      Object.values(req.files).forEach(files => {
-        files.forEach(file => {
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
-          }
-        });
-      });
-    }
-    
     serverErrorResponse(res, 'Internal server error during book upload');
   }
 };
@@ -112,12 +112,13 @@ const getAllBooks = async (req, res) => {
       sortBy[parts[0]] = parts[1] === 'desc' ? -1 : 1;
     }
 
-    // Execute query with pagination
+    // Execute query with pagination - exclude file data for performance
     const books = await Book.find(query)
       .populate('uploadedBy', 'name profile.photo')
       .sort(sortBy)
       .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .select('-coverImage.data -pdfFile.data'); // Don't send file data in list
 
     // Get total count for pagination
     const total = await Book.countDocuments(query);
@@ -138,7 +139,8 @@ const getAllBooks = async (req, res) => {
 const getBookById = async (req, res) => {
   try {
     const book = await Book.findById(req.params.id)
-      .populate('uploadedBy', 'name profile.photo');
+      .populate('uploadedBy', 'name profile.photo')
+      .select('-coverImage.data -pdfFile.data'); // Don't send file data in details
 
     if (!book) {
       return notFoundResponse(res, 'Book not found');
@@ -150,14 +152,65 @@ const getBookById = async (req, res) => {
       return notFoundResponse(res, 'Book not found');
     }
 
-    // Increment download count (optional - you can remove this if not needed)
-    book.numberOfDownloads += 1;
-    await book.save();
-
     okResponse(res, 'Book retrieved successfully', { book });
 
   } catch (error) {
     console.error('Get book by ID error:', error);
+    serverErrorResponse(res, 'Internal server error');
+  }
+};
+
+// Download book PDF (public)
+const downloadBook = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+
+    if (!book) {
+      return notFoundResponse(res, 'Book not found');
+    }
+
+    // Check if book is published
+    if (!book.isPublished && 
+        (!req.user || (req.user.id !== book.uploadedBy.toString() && req.user.role !== 'admin'))) {
+      return notFoundResponse(res, 'Book not found');
+    }
+
+    // Check if PDF file exists
+    if (!book.pdfFile || !book.pdfFile.data) {
+      return notFoundResponse(res, 'PDF file not found');
+    }
+
+    // Increment download count
+    book.numberOfDownloads += 1;
+    await book.save();
+
+    // Set headers and send PDF
+    res.setHeader('Content-Type', book.pdfFile.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${book.title}.pdf"`);
+    res.setHeader('Content-Length', book.pdfFile.data.length);
+
+    res.send(book.pdfFile.data);
+
+  } catch (error) {
+    console.error('Download book error:', error);
+    serverErrorResponse(res, 'Internal server error during download');
+  }
+};
+
+// Get book cover image
+const getBookCover = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+
+    if (!book || !book.coverImage || !book.coverImage.data) {
+      return notFoundResponse(res, 'Cover image not found');
+    }
+
+    res.setHeader('Content-Type', book.coverImage.contentType);
+    res.send(book.coverImage.data);
+
+  } catch (error) {
+    console.error('Get book cover error:', error);
     serverErrorResponse(res, 'Internal server error');
   }
 };
@@ -179,49 +232,41 @@ const updateBook = async (req, res) => {
       return notFoundResponse(res, 'Book not found');
     }
 
-    // Handle file uploads and delete old files
-    let coverImagePath = book.coverImage;
-    let pdfFilePath = book.pdfFile;
-
+    // Process file updates
     if (req.files) {
-      // Handle cover image update
+      // Update cover image
       if (req.files.coverImage) {
-        // Delete old cover image if exists
-        if (book.coverImage && fs.existsSync(book.coverImage)) {
-          fs.unlinkSync(book.coverImage);
-        }
-        coverImagePath = req.files.coverImage[0].path;
+        const coverImage = req.files.coverImage[0];
+        book.coverImage = {
+          data: coverImage.buffer,
+          contentType: coverImage.mimetype,
+          filename: coverImage.originalname
+        };
       }
-      
-      // Handle PDF update
+
+      // Update PDF file
       if (req.files.pdfFile) {
-        // Delete old PDF if exists
-        if (book.pdfFile && fs.existsSync(book.pdfFile)) {
-          fs.unlinkSync(book.pdfFile);
-        }
-        pdfFilePath = req.files.pdfFile[0].path;
+        const pdfFile = req.files.pdfFile[0];
+        book.pdfFile = {
+          data: pdfFile.buffer,
+          contentType: pdfFile.mimetype,
+          filename: pdfFile.originalname,
+          size: pdfFile.size
+        };
       }
     }
 
-    // Update book
-    const updatedBook = await Book.findByIdAndUpdate(
-      req.params.id,
-      {
-        title: title || book.title,
-        description: description || book.description,
-        authorName: authorName || book.authorName,
-        coverImage: coverImagePath,
-        pdfFile: pdfFilePath,
-        category: category || book.category,
-        isPublished: isPublished !== undefined ? isPublished : book.isPublished
-      },
-      {
-        new: true,
-        runValidators: true
-      }
-    ).populate('uploadedBy', 'name profile.photo');
+    // Update other fields
+    if (title) book.title = title.replace(/"/g, '');
+    if (description) book.description = description.replace(/"/g, '');
+    if (authorName) book.authorName = authorName.replace(/"/g, '');
+    if (category) book.category = category.replace(/"/g, '');
+    if (isPublished !== undefined) book.isPublished = isPublished;
 
-    okResponse(res, 'Book updated successfully', { book: updatedBook });
+    await book.save();
+    await book.populate('uploadedBy', 'name profile.photo');
+
+    okResponse(res, 'Book updated successfully', { book });
 
   } catch (error) {
     console.error('Update book error:', error);
@@ -238,15 +283,6 @@ const deleteBook = async (req, res) => {
       return notFoundResponse(res, 'Book not found');
     }
 
-    // Delete associated files
-    if (book.coverImage && fs.existsSync(book.coverImage)) {
-      fs.unlinkSync(book.coverImage);
-    }
-    if (book.pdfFile && fs.existsSync(book.pdfFile)) {
-      fs.unlinkSync(book.pdfFile);
-    }
-
-    // Delete book from database
     await Book.findByIdAndDelete(req.params.id);
 
     okResponse(res, 'Book deleted successfully');
@@ -257,73 +293,12 @@ const deleteBook = async (req, res) => {
   }
 };
 
-// Get books by uploader
-const getBooksByUploader = async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 10
-    } = req.query;
-
-    const books = await Book.find({ uploadedBy: req.params.uploaderId })
-      .populate('uploadedBy', 'name profile.photo')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Book.countDocuments({ uploadedBy: req.params.uploaderId });
-
-    paginatedResponse(res, 'Books retrieved successfully', books, {
-      current: page * 1,
-      pages: Math.ceil(total / limit),
-      total
-    });
-
-  } catch (error) {
-    console.error('Get books by uploader error:', error);
-    serverErrorResponse(res, 'Internal server error');
-  }
-};
-
-// Download book PDF (public)
-const downloadBook = async (req, res) => {
-  try {
-    const book = await Book.findById(req.params.id);
-
-    if (!book) {
-      return notFoundResponse(res, 'Book not found');
-    }
-
-    // Check if book is published
-    if (!book.isPublished && 
-        (!req.user || (req.user.id !== book.uploadedBy.toString() && req.user.role !== 'admin'))) {
-      return notFoundResponse(res, 'Book not found');
-    }
-
-    // Check if PDF file exists
-    if (!book.pdfFile || !fs.existsSync(book.pdfFile)) {
-      return notFoundResponse(res, 'PDF file not found');
-    }
-
-    // Increment download count
-    book.numberOfDownloads += 1;
-    await book.save();
-
-    // Send file for download
-    res.download(book.pdfFile, `${book.title}.pdf`);
-
-  } catch (error) {
-    console.error('Download book error:', error);
-    serverErrorResponse(res, 'Internal server error during download');
-  }
-};
-
 module.exports = {
   createBook,
   getAllBooks,
   getBookById,
   updateBook,
   deleteBook,
-  getBooksByUploader,
-  downloadBook
+  downloadBook,
+  getBookCover
 };
