@@ -27,11 +27,41 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
-}));
+// CORS configuration - UPDATED ROBUST VERSION
+const corsOptions = {
+  origin: function (origin, callback) {
+    const productionDomains = [
+      'https://radiant-wisdom-hub.vercel.app',
+      'https://www.radiant-wisdom-hub.vercel.app' // with www
+    ];
+    
+    const developmentDomains = [
+      'http://localhost:3000',
+      'http://localhost:8080',
+      'http://localhost:5173',
+      'http://192.168.1.7:8080',
+      'https://radiant-wisdom-hub.vercel.app' // Also allow production domain in dev
+    ];
+
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? productionDomains
+      : [...productionDomains, ...developmentDomains];
+
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked: ${origin} in ${process.env.NODE_ENV} mode`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
