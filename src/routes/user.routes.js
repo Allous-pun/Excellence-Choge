@@ -9,7 +9,7 @@ const {
 } = require('../controllers/user.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 const { adminOnly } = require('../middlewares/role.middleware');
-const upload = require('../middlewares/upload.middleware'); // Fixed import
+const uploadMiddleware = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ router.use(authMiddleware);
 
 // User profile routes
 router.get('/profile', getProfile);
-router.patch('/profile', upload.single('photo'), updateProfile); // Fixed this line
+router.patch('/profile', uploadMiddleware.single('photo'), updateProfile);
 
 // Admin only routes
 router.get('/', adminOnly, getAllUsers);

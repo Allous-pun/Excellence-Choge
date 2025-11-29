@@ -9,8 +9,8 @@ const path = require('path');
 // Import routes (only the ones that exist)
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
-// const sermonRoutes = require('./routes/sermon.routes');
-// const prayerRoutes = require('./routes/prayer.routes');
+const sermonRoutes = require('./routes/sermon.routes');
+const prayerRoutes = require('./routes/prayer.routes');
 // const bookRoutes = require('./routes/book.routes');
 // const materialRoutes = require('./routes/material.routes');
 // const assignmentRoutes = require('./routes/assignment.routes');
@@ -98,8 +98,8 @@ app.get('/api/health', (req, res) => {
 // API routes (only enable existing ones)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-// app.use('/api/sermons', sermonRoutes);
-// app.use('/api/prayers', prayerRoutes);
+app.use('/api/sermons', sermonRoutes);
+app.use('/api/prayers', prayerRoutes);
 // app.use('/api/books', bookRoutes);
 // app.use('/api/materials', materialRoutes);
 // app.use('/api/assignments', assignmentRoutes);
