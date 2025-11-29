@@ -6,7 +6,9 @@ const fs = require('fs');
 const uploadDirs = [
   'uploads/images',
   'uploads/audio',
-  'uploads/profiles'
+  'uploads/profiles',
+  'uploads/books',
+  'uploads/images/books'
 ];
 
 uploadDirs.forEach(dir => {
@@ -23,10 +25,12 @@ const storage = multer.diskStorage({
     // Determine upload path based on file type and route
     if (file.fieldname === 'audio') {
       uploadPath = 'uploads/audio/';
-    } else if (file.fieldname === 'image') {
+    } else if (file.fieldname === 'image' || file.fieldname === 'photo') {
       uploadPath = 'uploads/images/';
-    } else if (file.fieldname === 'photo') {
-      uploadPath = 'uploads/profiles/';
+    } else if (file.fieldname === 'pdfFile') {
+      uploadPath = 'uploads/books/';
+    } else if (file.fieldname === 'coverImage') {
+      uploadPath = 'uploads/images/books/';
     }
     
     // Additional logic based on route
@@ -40,6 +44,12 @@ const storage = multer.diskStorage({
       }
     } else if (req.baseUrl.includes('prayers')) {
       uploadPath = 'uploads/images/';
+    } else if (req.baseUrl.includes('books')) {
+      if (file.fieldname === 'pdfFile') {
+        uploadPath = 'uploads/books/';
+      } else if (file.fieldname === 'coverImage') {
+        uploadPath = 'uploads/images/books/';
+      }
     }
     
     cb(null, uploadPath);
@@ -53,6 +63,8 @@ const storage = multer.diskStorage({
     if (file.fieldname === 'image') prefix = 'image';
     if (file.fieldname === 'audio') prefix = 'audio';
     if (file.fieldname === 'photo') prefix = 'profile';
+    if (file.fieldname === 'pdfFile') prefix = 'book';
+    if (file.fieldname === 'coverImage') prefix = 'cover';
     
     const fileName = prefix + '-' + uniqueSuffix + fileExtension;
     cb(null, fileName);
@@ -62,8 +74,8 @@ const storage = multer.diskStorage({
 // File filter
 const fileFilter = (req, file, cb) => {
   // Check file type based on fieldname
-  if (file.fieldname === 'image' || file.fieldname === 'photo') {
-    // Only allow images for image/photo fields
+  if (file.fieldname === 'image' || file.fieldname === 'photo' || file.fieldname === 'coverImage') {
+    // Only allow images for image/photo/coverImage fields
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
@@ -76,6 +88,13 @@ const fileFilter = (req, file, cb) => {
     } else {
       cb(new Error('Only audio files are allowed!'), false);
     }
+  } else if (file.fieldname === 'pdfFile') {
+    // Only allow PDF files for pdfFile field
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed for books!'), false);
+    }
   } else {
     cb(new Error('Unexpected file field!'), false);
   }
@@ -86,7 +105,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit for all files
+    fileSize: 50 * 1024 * 1024 // 50MB limit for books (larger for PDFs)
   }
 });
 
@@ -100,6 +119,12 @@ const uploadMiddleware = {
   
   // For prayers (single image)
   prayerImage: () => upload.single('image'),
+  
+  // For books (cover image + PDF)
+  bookFiles: () => upload.fields([
+    { name: 'coverImage', maxCount: 1 },
+    { name: 'pdfFile', maxCount: 1 }
+  ]),
   
   // For multiple files of same type
   array: (fieldName, maxCount) => upload.array(fieldName, maxCount),
