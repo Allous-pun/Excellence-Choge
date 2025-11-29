@@ -1,5 +1,5 @@
 // controllers/material.controller.js
-const Material = require('../models/Material'); // Changed from LearningMaterial to Material
+const Material = require('../models/Material');
 const { 
   createdResponse, 
   okResponse, 
@@ -395,10 +395,32 @@ const deleteLearningMaterial = async (req, res) => {
   }
 };
 
-// Get categories (for frontend dropdowns)
+// Get categories (for frontend dropdowns) - ONLY ONE FUNCTION
 const getCategories = async (req, res) => {
   try {
-    const categories = await Material.distinct('category', { isPublished: true });
+    const categories = [
+      'Bible Studies',
+      'Youth Ministry',
+      'Sunday School',
+      'Theology',
+      'Church History',
+      'Christian Living',
+      'Leadership',
+      'Worship',
+      'Evangelism',
+      'Discipleship',
+      'Marriage & Family',
+      'Children Ministry',
+      'Teen Ministry',
+      'Adult Education',
+      'Seminary',
+      'Spiritual Growth',
+      'Apologetics',
+      'Missions',
+      'Pastoral Care',
+      'Biblical Languages'
+    ];
+    
     okResponse(res, 'Categories retrieved successfully', { categories });
   } catch (error) {
     console.error('Get categories error:', error);
