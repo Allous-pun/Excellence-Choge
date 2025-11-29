@@ -13,7 +13,7 @@ const sermonRoutes = require('./routes/sermon.routes');
 const prayerRoutes = require('./routes/prayer.routes');
 const bookRoutes = require('./routes/book.routes');
 const materialRoutes = require('./routes/material.routes');
-// const assignmentRoutes = require('./routes/assignment.routes');
+const assignmentRoutes = require('./routes/assignment.routes');
 // const zoomRoutes = require('./routes/zoom.routes');
 
 // Import middleware
@@ -102,7 +102,7 @@ app.use('/api/sermons', sermonRoutes);
 app.use('/api/prayers', prayerRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/materials', materialRoutes);
-// app.use('/api/assignments', assignmentRoutes);
+app.use('/api/assignments', assignmentRoutes);
 // app.use('/api/zoom', zoomRoutes);
 
 // Handle undefined routes
