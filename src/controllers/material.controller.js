@@ -395,7 +395,7 @@ const deleteLearningMaterial = async (req, res) => {
   }
 };
 
-// Get categories (for frontend dropdowns) - ONLY ONE FUNCTION
+// Get categories (for frontend dropdowns)
 const getCategories = async (req, res) => {
   try {
     const categories = [
@@ -421,10 +421,22 @@ const getCategories = async (req, res) => {
       'Biblical Languages'
     ];
     
-    okResponse(res, 'Categories retrieved successfully', { categories });
+    console.log('Sending categories:', categories);
+    
+    // Direct response to ensure it works
+    return res.status(200).json({
+      status: 'success',
+      message: 'Categories retrieved successfully',
+      data: {
+        categories: categories
+      }
+    });
   } catch (error) {
     console.error('Get categories error:', error);
-    serverErrorResponse(res, 'Internal server error');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error'
+    });
   }
 };
 
